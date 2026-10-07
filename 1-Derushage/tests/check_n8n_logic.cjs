@@ -1,0 +1,10 @@
+const fs=require('node:fs');
+const path=require('node:path');
+const code=fs.readFileSync(path.join(__dirname,'../n8n/validation.js'),'utf8');
+const run=new Function('$json',code);
+const payload={schema_version:1,action:'plan',job_id:'11111111-1111-4111-8111-111111111111',files:[{name:'C2.mp4',duration:1},{name:'C10.mp4',duration:1},{name:'C1.mp4',duration:1}],parameters:{mode:'shorten',quality:'preview',min_pause:.8,keep_pause:.3,threshold_db:-35,trim_edges:true}};
+const result=run({body:payload})[0].json;
+if(JSON.stringify(result.response.ordered_names)!==JSON.stringify(['C1.mp4','C10.mp4','C2.mp4'])) throw new Error('Not lexicographic');
+payload.files.push({name:'C2.mp4',duration:1});
+if(run({body:payload})[0].json.ok) throw new Error('Duplicate accepted');
+console.log('n8n logic: exact lexicographic order and duplicate rejection verified');
