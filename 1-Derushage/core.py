@@ -1,6 +1,7 @@
 """Dérushage local : inspection, silences, découpage traçable et rendu synchronisé."""
 from __future__ import annotations
 import csv
+import functools
 import hashlib
 import json
 import math
@@ -315,6 +316,18 @@ def n8n_request(payload):
         time.sleep(.5)
 
 
+@functools.lru_cache(maxsize=1)
+def filter_script_option():
+    # FFmpeg 6 reads filter files through a dedicated option; newer releases
+    # use the generic -/option syntax. Keep scripts in files for Windows limits.
+    result = subprocess.run([str(FFMPEG), '-hide_banner', '-h', 'full'],
+                            stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                            text=True, encoding='utf-8', errors='replace',
+                            check=True, timeout=15, creationflags=CREATE_FLAGS)
+    return ('-filter_complex_script' if '-filter_complex_script ' in result.stdout
+            else '-/filter_complex')
+
+
 def render(timeline, job_id, progress, cancel):
     scratch = WORK / 'jobs' / job_id
     scratch.mkdir(parents=True, exist_ok=True)
@@ -364,7 +377,7 @@ def render(timeline, job_id, progress, cancel):
             script.write_text(';\n'.join(graph), encoding='utf-8')
             temp = piece.with_suffix('.partial.mkv')
             run_ffmpeg(['-y','-threads','4','-i',source['path'],'-filter_complex_threads','2',
-                        '-/filter_complex',str(script),'-map','[v]','-map','[a]',
+                        filter_script_option(),str(script),'-map','[v]','-map','[a]',
                         '-map_metadata','-1','-c:v','libx264','-preset','veryfast','-crf',
                         '23' if p['quality']=='preview' else '17','-threads','4','-pix_fmt','yuv420p',
                         '-c:a','pcm_s16le','-metadata:s:v:0','rotate=0',str(temp)],
