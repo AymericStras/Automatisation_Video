@@ -42,3 +42,30 @@ terraform.rc
 # Optional: ignore plan files saved before destroying Terraform configuration
 # Uncomment the line below if you want to ignore planout files.
 # planout
+# Prototype vidÃ©o : les donnÃ©es restent locales
+.env
+.env.*
+!.env.example
+**/config.json
+**/.venv/
+**/__pycache__/
+*.py[cod]
+**/node_modules/
+**/.work/
+**/projets/
+**/bin/*.exe
+**/bin/*.dll
+**/bin/ffmpeg
+**/bin/ffprobe
+**/static/editor/editor.js*
+**/static/editor/editor.css
+*.log
+*.mp4
+*.MP4
+*.mov
+*.MOV
+*.mkv
+*.wav
+*.mp3
+*.zip
+*.7z

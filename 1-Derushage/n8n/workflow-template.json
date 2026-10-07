@@ -1,0 +1,284 @@
+{
+  "name": "Dérushage",
+  "nodes": [
+    {
+      "id": "f2a5d965-d290-4bdc-8b12-d01b940d13d6",
+      "name": "Recevoir le formulaire local",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        200
+      ],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "derushage-REMPLACER",
+        "authentication": "none",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "notes": "Le formulaire local transmet les noms et réglages. Les médias restent sur le PC. Après le rendu FFmpeg, le même point d'entrée reçoit le bilan."
+    },
+    {
+      "id": "ab182a57-3bf2-4071-937b-f2638a9e5b80",
+      "name": "Valider et ordonner les videos",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        260,
+        200
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "const raw = $json.body ?? $json;\nconst bad = (message) => [{json:{ok:false,http_status:400,response:{ok:false,error:message}}}];\nif (!raw || typeof raw !== 'object' || JSON.stringify(raw).length > 131072) return bad('Demande invalide ou trop volumineuse.');\nif (raw.schema_version !== 1) return bad('Version du formulaire incompatible.');\nif (!/^[a-f0-9-]{36}$/.test(raw.job_id ?? '')) return bad('Identifiant de projet invalide.');\nif (!['plan','report'].includes(raw.action)) return bad('Action inconnue.');\nlet response, status, count, inputSeconds, outputSeconds = 0;\nif (raw.action === 'plan') {\n  if (!Array.isArray(raw.files) || raw.files.length < 1 || raw.files.length > 100) return bad('Sélectionner entre 1 et 100 vidéos.');\n  const seen = new Set();\n  let total = 0;\n  for (const f of raw.files) {\n    if (!f || typeof f.name !== 'string' || f.name.length > 240 || /[\\\\/:\\x00]/.test(f.name) || !/\\.(mp4|mov|mkv|m4v|avi|webm)$/i.test(f.name)) return bad('Nom de vidéo invalide.');\n    const key = f.name.toUpperCase();\n    if (seen.has(key)) return bad('Une vidéo apparaît plusieurs fois.');\n    seen.add(key);\n    if (typeof f.duration !== 'number' || !Number.isFinite(f.duration) || f.duration <= 0 || f.duration > 3600) return bad('Durée de vidéo invalide.');\n    total += f.duration;\n  }\n  if (total > 3600) return bad('Cette première version accepte au plus une heure de rushs par projet.');\n  const p = raw.parameters;\n  if (!p || !['assemble','shorten'].includes(p.mode) || !['preview','full'].includes(p.quality)) return bad('Mode de montage ou qualité invalide.');\n  const inRange = (x,a,b) => typeof x === 'number' && Number.isFinite(x) && x >= a && x <= b;\n  if (!inRange(p.min_pause,0.2,5) || !inRange(p.keep_pause,0.1,1) || !inRange(p.threshold_db,-60,-10) || typeof p.trim_edges !== 'boolean') return bad('Les réglages de silence sont hors limites.');\n  if (p.keep_pause >= p.min_pause) return bad('La respiration conservée doit être plus courte que la pause minimale.');\n  const sorted = [...raw.files].sort((a,b) => a.name.toUpperCase() < b.name.toUpperCase() ? -1 : a.name.toUpperCase() > b.name.toUpperCase() ? 1 : 0);\n  response = {ok:true,schema_version:1,job_id:raw.job_id,ordered_names:sorted.map(f => f.name),parameters:{mode:p.mode,quality:p.quality,min_pause:p.min_pause,keep_pause:p.keep_pause,threshold_db:p.threshold_db,trim_edges:p.trim_edges},input_seconds:total,requires_human_review:true};\n  status = 'planned'; count = sorted.length; inputSeconds = total;\n} else {\n  const s = raw.summary;\n  if (!s || !['completed','failed','accepted'].includes(s.status)) return bad('Bilan invalide.');\n  if (![s.files_count,s.input_seconds,s.output_seconds].every(x => typeof x === 'number' && Number.isFinite(x) && x >= 0)) return bad('Mesures du bilan invalides.');\n  response = {ok:true,schema_version:1,job_id:raw.job_id,recorded:true,status:s.status};\n  status=s.status; count=s.files_count; inputSeconds=s.input_seconds; outputSeconds=s.output_seconds;\n}\nreturn [{json:{ok:true,http_status:200,response,entry_key:raw.job_id + ':' + raw.action,job_id:raw.job_id,event:raw.action,status,files_count:count,input_seconds:inputSeconds,output_seconds:outputSeconds,raw_request:JSON.stringify(raw),response_json:JSON.stringify(response)}}];\n"
+      },
+      "notes": "Vérifie les limites des réglages et renvoie l'ordre lexicographique. Aucun choix automatique de prise ou de phrase répétée."
+    },
+    {
+      "id": "9f8f8af6-7b6f-41c0-9ada-d95dfb4a9715",
+      "name": "Demande valide",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        520,
+        200
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.ok }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "bfa12d66-43fc-48b0-84be-30e373a710d9",
+      "name": "Conserver la demande et le bilan",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        800,
+        100
+      ],
+      "parameters": {
+        "resource": "row",
+        "operation": "upsert",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "",
+          "cachedResultName": "Derushage - journal"
+        },
+        "matchType": "allConditions",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "entry_key",
+              "condition": "eq",
+              "keyValue": "={{ $json.entry_key }}"
+            }
+          ]
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "entry_key": "={{ $json.entry_key }}",
+            "job_id": "={{ $json.job_id }}",
+            "event": "={{ $json.event }}",
+            "status": "={{ $json.status }}",
+            "files_count": "={{ $json.files_count }}",
+            "input_seconds": "={{ $json.input_seconds }}",
+            "output_seconds": "={{ $json.output_seconds }}",
+            "raw_request": "={{ $json.raw_request }}",
+            "response_json": "={{ $json.response_json }}"
+          },
+          "schema": [
+            {
+              "id": "entry_key",
+              "displayName": "entry_key",
+              "type": "string",
+              "display": true,
+              "required": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "job_id",
+              "displayName": "job_id",
+              "type": "string",
+              "display": true,
+              "required": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "event",
+              "displayName": "event",
+              "type": "string",
+              "display": true,
+              "required": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "status",
+              "displayName": "status",
+              "type": "string",
+              "display": true,
+              "required": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "files_count",
+              "displayName": "files_count",
+              "type": "number",
+              "display": true,
+              "required": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "input_seconds",
+              "displayName": "input_seconds",
+              "type": "number",
+              "display": true,
+              "required": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "output_seconds",
+              "displayName": "output_seconds",
+              "type": "number",
+              "display": true,
+              "required": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "raw_request",
+              "displayName": "raw_request",
+              "type": "string",
+              "display": true,
+              "required": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "response_json",
+              "displayName": "response_json",
+              "type": "string",
+              "display": true,
+              "required": false,
+              "canBeUsedToMatch": true
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "35e9c549-acb9-41ae-998c-a5119fd9f022",
+      "name": "Renvoyer le plan au PC",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        1080,
+        100
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $('Valider et ordonner les videos').first().json.response }}",
+        "options": {
+          "responseCode": 200
+        }
+      }
+    },
+    {
+      "id": "faa32f1f-c5ff-405e-aa5b-5e9ad02bac27",
+      "name": "Expliquer la demande invalide",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        800,
+        400
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json.response }}",
+        "options": {
+          "responseCode": "={{ $json.http_status }}"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Recevoir le formulaire local": {
+      "main": [
+        [
+          {
+            "node": "Valider et ordonner les videos",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Valider et ordonner les videos": {
+      "main": [
+        [
+          {
+            "node": "Demande valide",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Demande valide": {
+      "main": [
+        [
+          {
+            "node": "Conserver la demande et le bilan",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Expliquer la demande invalide",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Conserver la demande et le bilan": {
+      "main": [
+        [
+          {
+            "node": "Renvoyer le plan au PC",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Europe/Paris",
+    "executionTimeout": 60,
+    "saveDataSuccessExecution": "none",
+    "saveDataErrorExecution": "all"
+  },
+  "active": false
+}
