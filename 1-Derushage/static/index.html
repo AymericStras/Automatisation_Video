@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="fr">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Dérushage · atelier vidéo</title><link rel="stylesheet" href="/style.css"><script src="/app.js" defer></script></head>
+<body>
+<main>
+  <header><div><p class="eyebrow">ATELIER VIDÉO <span>LOCAL × n8n</span></p><h1>Dérushage<span class="dot">.</span></h1><p class="intro">Tes prises dans le bon ordre. Des pauses qui respirent.</p></div><a id="workflow" class="quiet-link" target="_blank" rel="noopener">Ouvrir le workflow ↗</a></header>
+  <div class="notice"><span class="status-dot"></span><span>Les vidéos restent sur ton ordinateur. n8n reçoit les réglages et le bilan.</span></div>
+  <div id="error" class="error" role="alert" hidden></div>
+  <form id="editor">
+    <div class="workspace">
+      <section class="card sources"><div class="section-title"><span class="step">01</span><h2>Choisir les prises</h2></div>
+        <label for="folder">Dossier de vidéos</label><div class="folder-row"><input id="folder" required autocomplete="off" spellcheck="false"><button id="load-files" type="button" class="secondary">Afficher les vidéos</button></div>
+        <div class="selection-bar"><p id="selection-count" aria-live="polite">Chargement…</p><div><button id="select-all" type="button" class="text-button">Tout</button><span> / </span><button id="select-none" type="button" class="text-button">Aucun</button></div></div>
+        <div id="files" class="file-list" aria-label="Vidéos disponibles"></div>
+        <p class="hint">L’assemblage suit l’ordre alphabétique des noms, sans modifier les fichiers d’origine.</p>
+      </section>
+      <section class="card settings"><div class="section-title"><span class="step">02</span><h2>Régler le rythme</h2></div>
+        <label for="mode">Traitement</label><select id="mode"><option value="shorten">Raccourcir les pauses longues</option><option value="assemble">Assembler sans couper</option></select>
+        <div id="silence-settings">
+          <div class="two-fields"><div><label for="min-pause">Pause à raccourcir</label><div class="unit-input"><input id="min-pause" type="number" min="0.2" max="5" step="0.1" value="0.8" required><span>s minimum</span></div></div><div><label for="keep-pause">Respiration conservée</label><div class="unit-input"><input id="keep-pause" type="number" min="0.1" max="1" step="0.05" value="0.3" required><span>s</span></div></div></div>
+          <p class="hint">Les pauses plus courtes restent intactes. Une marge est conservée autour de la parole.</p>
+          <details open><summary>Sensibilité et extrémités</summary><label class="range-label" for="threshold">Seuil de silence <output id="threshold-value">−35 dB</output></label><input id="threshold" type="range" min="-60" max="-10" value="-35" step="1"><div class="range-captions"><span>Préserver plus de son</span><span>Détecter plus de silences</span></div><p class="hint">Si une voix faible est coupée, déplace le curseur vers la gauche.</p><label class="check-line"><input id="trim-edges" type="checkbox" checked> Raccourcir aussi les longues pauses au début et à la fin</label></details>
+        </div>
+        <select id="quality" hidden aria-label="Qualité par défaut"><option value="preview">Aperçu</option><option value="full">Pleine résolution</option></select><p class="hint">Les pauses détectées seront raccourcies automatiquement dans l’aperçu. Tu pourras ajuster chaque coupe ou rétablir une pause avant l’export.</p>
+        <button id="launch" type="submit" class="primary">Préparer les coupes <span>→</span></button>
+      </section>
+    </div>
+  </form>
+  <section id="progress-card" class="card progress-card" hidden aria-live="polite"><div><p class="eyebrow">TRAITEMENT EN COURS</p><h2 id="progress-message">Préparation…</h2><progress id="progress" max="100" value="0"></progress><p class="hint">Tu peux laisser cette page ouverte pendant le rendu.</p></div><button id="cancel" class="secondary">Annuler le traitement</button></section>
+  <section id="edit-card" class="card" hidden><h2>Corriger le montage dans l’aperçu</h2><p class="hint">Ajuste les points d’entrée et de sortie, rétablis une pause ou déplace une prise. Sauvegarde et valide le montage avant de demander un nouvel export.</p><a id="edit-link" class="primary">Ouvrir l’éditeur des coupes →</a></section>
+  <section id="result" class="card result" hidden><div class="section-title"><span class="step">03</span><h2>Regarder et vérifier</h2><span id="review-badge" class="badge">À relire</span></div>
+    <div class="result-grid"><div class="player"><video id="video" controls preload="metadata" playsinline></video></div><div class="result-info"><div id="metrics" class="metrics"></div><p id="result-message" class="hint"></p><p id="warnings" class="hint"></p><div class="downloads"><a id="download-video" class="primary" download>Télécharger le MP4 ↓</a><a id="download-csv" class="secondary" download>Découpage CSV</a><a id="download-json" class="quiet-link" target="_blank" rel="noopener">Voir le projet détaillé ↗</a></div><button id="review" class="secondary">J’ai vérifié l’image, le son et les raccords</button><button id="open-folder" class="text-button">Ouvrir le dossier du résultat</button><button id="sync" class="text-button" hidden>Renvoyer le bilan à n8n</button><p class="hint">Pour comparer un réglage, modifie le formulaire puis crée une nouvelle version. Chaque résultat reste disponible.</p></div></div>
+  </section>
+  <section id="failed-card" class="card" hidden><h2 id="failed-title">Le traitement demande une correction</h2><p id="failed-message"></p><button id="resume" class="secondary">Reprendre ce projet</button><p class="hint">Les analyses et les segments déjà terminés seront réutilisés si leurs sources et réglages n’ont pas changé.</p></section>
+  <section class="history-section"><div class="section-title"><h2>Versions conservées</h2><span id="history-count" class="hint"></span></div><div id="history"><p class="hint">Tes prochains résultats apparaîtront ici.</p></div></section>
+  <footer><span>V2 · Coupes corrigibles · aperçu interactif · validation humaine</span><button id="shutdown" class="text-button">Fermer le moteur local</button></footer>
+</main>
+</body></html>

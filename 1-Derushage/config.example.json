@@ -1,0 +1,10 @@
+{
+  "port": 8765,
+  "default_folder": "C:/Videos",
+  "allowed_roots": [
+    "C:/Videos"
+  ],
+  "default_files": [],
+  "n8n_webhook": "https://INSTANCE.example/webhook/REMPLACER",
+  "workflow_url": "https://INSTANCE.example/workflow/REMPLACER"
+}

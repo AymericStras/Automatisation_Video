@@ -1,0 +1,6 @@
+{
+  "name": "derushage-editor", "private": true, "version": "2.0.0",
+  "scripts": {"build": "node build.mjs", "check": "tsc --noEmit"},
+  "dependencies": {"@remotion/player": "4.0.532", "remotion": "4.0.532", "react": "19.3.0", "react-dom": "19.3.0"},
+  "devDependencies": {"esbuild": "0.28.2", "typescript": "7.0.2", "@types/react": "^19.0.0", "@types/react-dom": "^19.0.0"}
+}
