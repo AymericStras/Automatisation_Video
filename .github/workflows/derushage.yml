@@ -1,0 +1,33 @@
+name: Verifier le derushage
+on:
+  pull_request:
+  push:
+    branches: [main, 'feat/**', 'fix/**']
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: 1-Derushage/editor/package-lock.json
+      - name: Installer FFmpeg
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+      - name: Verifier les JSON suivis par Git
+        run: python -c "import json,pathlib,subprocess; files=subprocess.check_output(['git','ls-files','-z']).decode().split(chr(0)); [json.loads(pathlib.Path(p).read_text(encoding='utf-8-sig')) for p in files if p.endswith('.json')]"
+      - name: Tester le moteur et les decisions
+        run: python -m unittest discover -s 1-Derushage/tests -p 'test_*.py' -v
+      - name: Tester le contrat n8n
+        run: node 1-Derushage/tests/check_n8n_logic.cjs
+      - run: npm ci
+        working-directory: 1-Derushage/editor
+      - run: npm run check && npm run build
+        working-directory: 1-Derushage/editor
